@@ -1,0 +1,46 @@
+#!/usr/bin/env perl6
+
+use v6;
+
+constant $N = 100;
+
+srand(42);
+
+my @matrix;
+my @rvals;
+
+for 0..($N-1) -> $i {
+    for 0..($N-1) -> $j {
+        @matrix[$i][$j] = FatRat.new(25.rand.round);
+    } 
+    @rvals[$i] = FatRat.new(25.rand.round);
+}
+say "prep done";
+
+for 0..($N-2) -> $i {
+    for ($i+1)..($N-1) -> $j {
+        my $multiplier = @matrix[$j][$i] / @matrix[$i][$i];
+        for 0..($N-1) -> $x {
+          @matrix[$j][$x] = (@matrix[$j][$x] - @matrix[$i][$x] * $multiplier).norm;
+        }
+        @rvals[$j] = (@rvals[$j] - @rvals[$i] * $multiplier).norm;
+    }
+}
+# and back up
+for (1..($N-1)).reverse -> $i {
+    for (0..($i-1)).reverse -> $j {
+        my $multiplier = @matrix[$j][$i] / @matrix[$i][$i];
+        for 0..($N-1) -> $x {
+            @matrix[$j][$x] = @matrix[$j][$x] - @matrix[$i][$x] * $multiplier;
+        }
+        @rvals[$j] = @rvals[$j] - @rvals[$i] * $multiplier;
+    }
+}
+# normalize
+for 0..($N-1) -> $i {
+    @rvals[$i] /= @matrix[$i][$i];
+    @matrix[$i][$i] = 1;
+}
+for @rvals -> $i {
+    say $i.norm.nude.join('/');
+};
