@@ -15,7 +15,6 @@ for 0..($N-1) -> $i {
     } 
     @rvals[$i] = FatRat.new(25.rand.round);
 }
-say "prep done";
 
 for 0..($N-2) -> $i {
     for ($i+1)..($N-1) -> $j {
@@ -42,5 +41,12 @@ for 0..($N-1) -> $i {
     @matrix[$i][$i] = 1;
 }
 for @rvals -> $i {
-    say $i.norm.nude.join('/');
+    say $i;
 };
+if 0.134717 < @rvals[0] < 0.134718 {
+    say "check ok";
+}  
+else {
+    say "check failed!";
+    exit(1);
+}
