@@ -1,0 +1,223 @@
+#!/usr/bin/env perl6
+
+# XXX should not use a third-party module in benchmark
+use JSON::Tiny;
+
+class Message {
+    has $.headers is rw = {};
+    has $.body is rw = Nil;
+
+    method parse-header($header-text) {
+        my @lines = $header-text.split("\r\n");
+
+        self.parse-start-line(shift @lines);
+
+        for @lines -> $line {
+            my ($k, $v) = $line.split(":", 2);
+            $v .= trim-leading;
+            $!headers{$k} = $v;
+        } 
+    }
+
+    method serialize-header() {
+        my $buffer = self.serialize-start-line();
+        for $!headers.pairs -> $h {
+            $buffer ~= "\r\n{$h.key}: {$h.value}".encode;
+        }
+        $buffer ~= "\r\n\r\n".encode;
+        return $buffer;
+    } 
+}
+
+class Request is Message {
+    has $.method;
+    has $.request-target;
+    has $.http-version;
+
+    method parse-start-line($request-line) {
+        if ($request-line ~~ /^ (\S+) \s (\S+) \s (\S+) $/) {
+            ($!method, $!request-target, $!http-version) = ~$0, ~$1, ~$2;
+        }
+        else {
+            die "could not parse request";
+        }
+    }
+
+    method serialize-start-line() {
+        return "$!method $!request-target $!http-version".encode;
+    }
+}
+
+class Response is Message {
+    has $.http-version;
+    has $.status-code;
+    has $.status-phrase;
+
+    method parse-start-line($response-line) {
+        if ($response-line ~~ /^ (\S+) \s (\S+) \s (.*) $/) {
+            ($!http-version, $!status-code, $!status-phrase) = ~$0, ~$1, ~$2;
+        }
+        else {
+            die "could not parse response";
+        }
+    }
+
+    method serialize-start-line() {
+        return "$.http-version $.status-code $.status-phrase".encode;
+    }
+}
+
+class Wheel {
+    has $.handler;
+    has $!buffer = buf8.new;
+    has $!parse-pos = 0;
+    has $!message = Nil;
+    has $!content-length = 0;
+    has $.message-class;
+
+    constant $header-sep = "\r\n\r\n".encode;
+
+    method put($input) {
+        $!buffer ~= $input;
+
+        # look for end of header
+        if ! defined $!message {
+            for $!parse-pos..($!buffer.elems-4) -> $i {
+                if (       ($!buffer[$i]   == $header-sep[0])
+                        && ($!buffer[$i+1] == $header-sep[1])
+                        && ($!buffer[$i+2] == $header-sep[2])
+                        && ($!buffer[$i+3] == $header-sep[3]) ) {
+                    
+                    my $header = $!buffer.subbuf(0, $i).decode(encoding => 'ISO-8859-1');
+
+                    if 'request' eq $!message-class {
+                        $!message = Request.new;
+                    }
+                    elsif 'response' eq $!message-class {
+                        $!message = Response.new;
+                    }
+                    $!message.parse-header($header);
+                    if defined $!message.headers<Content-Length> {
+                        $!content-length = $!message.headers<Content-Length>.Numeric;
+                        last;
+                    }
+                } 
+                else {
+                    $!parse-pos = $i+1;
+                }
+            }
+        }
+        # if we have a header, extract body and handle message
+        if defined $!message {
+            if $!buffer.elems >= $!parse-pos + $!content-length {
+                $!message.body = $!buffer.subbuf($!parse-pos + 4, $!content-length).decode(encoding => 'UTF-8');
+                $!handler($!message);
+
+                $!buffer = buf8.new;
+                $!parse-pos = 0;
+                $!message = Nil;
+                $!content-length = 0;
+            }
+        }
+    }
+}
+
+class Server {
+    has $.host;
+    has $.port;
+    has $.handler;
+    has $!done;
+    has $!srv-tap;
+
+    method start() {
+        my $h = $!host // '0.0.0.0';
+        my $p = $!port // 6060;
+        say "starting http server on $h:$p";
+        my $server-socket = IO::Socket::Async.listen($h, $p);
+        $!done = Promise.new;
+        $!srv-tap = $server-socket.tap( -> $client-socket {
+            say "accepted connection";
+            my $wheel = Wheel.new(message-class => 'request',
+                                handler => sub ($rq) {
+                                    my $response = $!handler($rq);
+                                    if $response.body {
+                                        my $body-buf = $response.body.encode;
+                                        $response.headers<Content-Length> = $body-buf.bytes;
+                                        $client-socket.write($response.serialize-header);
+                                        $client-socket.write($body-buf);
+                                    }
+                                    else {
+                                        $client-socket.write($response.serialize-header);
+                                    }
+                                    $client-socket.close;
+                                });
+            $client-socket.Supply(:bin).act( -> $input {
+                $wheel.put($input);
+            },
+            done => {
+                say "connection lost";
+            });
+        });
+        return $!done;
+    }
+
+    method stop() {
+        say "shutting down listener";
+        $!srv-tap.close;
+        $!done.keep;
+    }
+}
+
+class Client {
+    method execute($request) {
+        my ($host, $port) = $request.headers<Host>.split(':');
+        my $response-promise = Promise.new;
+        my $socket-promise = IO::Socket::Async.connect($host, $port);
+        $socket-promise.then({
+            say "connected!";
+            my $socket = $socket-promise.result;
+            # XXX there must be a better way to detect failure and do the then
+            # really. also how do I get the error from connect?
+            my $wheel = Wheel.new(message-class => 'response',
+                                            handler => sub ($rs) {
+                                                say "got response: " ~ $rs.perl;
+                                                $socket.close;
+                                            });
+            $socket.Supply(:bin).tap( -> $input {
+                say "input from {$*THREAD.id}";
+                $wheel.put($input);
+            },
+            done => {
+                say "connection lost";
+            });
+            $socket.write($request.serialize-header);
+            # XXX send body
+        });
+        
+        return $response-promise;
+    }
+}
+
+my $srv = Server.new(host => '127.0.0.1', port => 6060, handler => sub ($rq) {
+    my $res = Response.new(http-version => $rq.http-version,
+                                    status-code => 200,
+                                    status-phrase => "Ok");
+    my $body-data = {
+        test => [1, 2, 3, 'ofenrohr'
+            ]
+    };
+    $res.body = to-json($body-data);
+    return $res;
+});
+
+
+
+my $srv-promise = $srv.start;
+
+my $client = Client.new;
+my $request = Request.new(method => 'GET', request-target => '/test234', http-version => 'HTTP/1.0');
+$request.headers<Host> = '127.0.0.1:6060';
+my $response = await $client.execute($request);
+say $response.perl;
+
+await $srv-promise;
