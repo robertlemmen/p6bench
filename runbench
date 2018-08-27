@@ -2,37 +2,46 @@
 
 set -e
 
+echo "# cloning moar $1"
 git clone https://github.com/MoarVM/MoarVM.git
 cd MoarVM
 git checkout $1
+git log -n 1
 LDFLAGS=-Wl,-rpath=/usr/lib/moar CFLAGS=-DMP_GEN_RANDOM_MAX=2147483647 \
     perl Configure.pl --prefix=/usr --has-libtommath --has-libuv \
         --has-libatomic_ops --has-libffi --libdir=/usr/lib/moar
 make install -j `nproc`
 cd /
 
+echo "# cloning nqp $2"
 git clone https://github.com/perl6/nqp.git
 cd nqp
 git checkout $2
+git log -n 1
 perl Configure.pl --backends=moar --prefix=/usr
 make install -j `nproc`
 cd /
 
+echo "# cloning rakudo $3"
 git clone https://github.com/rakudo/rakudo.git
 cd rakudo
 git checkout $3
+git log -n 1
 perl Configure.pl --prefix=/usr --libdir=/usr/lib --backends=moar
 make install -j `nproc`
 cd /
 
+echo "# getting zef"
 git clone https://github.com/ugexe/zef.git
 cd zef
 perl6 -I. bin/zef install .
 
+echo "# installing JSON::Tiny"
 /usr/lib/perl6/site/bin/zef install JSON::Tiny
 
 echo "# perl 6 version"
 perl6 --version
+
 echo "# benchmark system"
 uname -a
 cat /proc/meminfo | head -n 3
@@ -43,6 +52,6 @@ nproc
 cd /p6bench
 for bm in $(ls  | sort); do
     echo "# running $bm"...
-    time ./$bm
+    { time ./$bm } 2>&1
 done
 echo "all done!"

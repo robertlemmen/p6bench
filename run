@@ -1,0 +1,19 @@
+#!/usr/bin/env perl6
+
+for "version-list".IO.lines -> $line {
+    if $line ~~ /^ '#'/ {
+        # comment, ignore
+    }
+    else {
+        my ($moar-ver, $nqp-ver, $rakudo-ver) = $line.split(/ \h+ /);
+        if ! "{$moar-ver}-{$nqp-ver}-{$rakudo-ver}.log".IO.e {
+            say "{$moar-ver}-{$nqp-ver}-{$rakudo-ver}.log does not exist, running benchmark";
+            my $fh = open(:w, "{$moar-ver}-{$nqp-ver}-{$rakudo-ver}.log");
+            my $proc = run("docker", "run", "p6bench:latest", $moar-ver, $nqp-ver, $rakudo-ver, :out($fh), :err);
+            $fh.close;
+            say($proc.err.slurp(:close));
+        }
+    }
+}
+
+
