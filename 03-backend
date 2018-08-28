@@ -3,6 +3,9 @@
 # XXX should not use a third-party module in benchmark
 use JSON::Tiny;
 
+constant NUM-THREADS = 25;
+constant RQS-PER-THREAD = 150;
+
 class Message {
     has $.headers is rw = {};
     has $.body is rw = Nil;
@@ -136,27 +139,46 @@ class Server {
         my $server-socket = IO::Socket::Async.listen($h, $p);
         $!done = Promise.new;
         $!srv-tap = $server-socket.tap( -> $client-socket {
-            say "accepted connection";
             my $wheel = Wheel.new(message-class => 'request',
                                 handler => sub ($rq) {
                                     my $response = $!handler($rq);
-                                    if $response.body {
-                                        my $body-buf = $response.body.encode;
-                                        $response.headers<Content-Length> = $body-buf.bytes;
-                                        $client-socket.write($response.serialize-header);
-                                        $client-socket.write($body-buf);
+                                    if $response.isa(Promise) {
+                                        $response.then({
+                                            # XXX better naming, refactor to
+                                            # avoid duplication
+                                            $response = $response.result;
+                                            if $response.body {
+                                                my $body-buf = $response.body.encode;
+                                                $response.headers<Content-Length> = $body-buf.bytes;
+                                                $client-socket.write($response.serialize-header);
+                                                $client-socket.write($body-buf);
+                                                
+                                            }
+                                            else {
+                                                $client-socket.write($response.serialize-header);
+                                            }
+                                            $client-socket.close;
+                                        });
                                     }
                                     else {
-                                        $client-socket.write($response.serialize-header);
+                                        if $response.body {
+                                            my $body-buf = $response.body.encode;
+                                            $response.headers<Content-Length> = $body-buf.bytes;
+                                            $client-socket.write($response.serialize-header);
+                                            $client-socket.write($body-buf);
+                                        }
+                                        else {
+                                            $client-socket.write($response.serialize-header);
+                                        }
+                                        $client-socket.close;
                                     }
-                                    $client-socket.close;
                                 });
             $client-socket.Supply(:bin).act( -> $input {
                 $wheel.put($input);
-            },
-            done => {
-                say "connection lost";
             });
+#            done => {
+#                say "connection lost";
+#            });
         });
         return $!done;
     }
@@ -174,22 +196,20 @@ class Client {
         my $response-promise = Promise.new;
         my $socket-promise = IO::Socket::Async.connect($host, $port);
         $socket-promise.then({
-            say "connected!";
             my $socket = $socket-promise.result;
             # XXX there must be a better way to detect failure and do the then
             # really. also how do I get the error from connect?
             my $wheel = Wheel.new(message-class => 'response',
                                             handler => sub ($rs) {
-                                                say "got response: " ~ $rs.perl;
                                                 $socket.close;
+                                                $response-promise.keep($rs);
                                             });
             $socket.Supply(:bin).tap( -> $input {
-                say "input from {$*THREAD.id}";
                 $wheel.put($input);
-            },
-            done => {
-                say "connection lost";
             });
+#            done => {
+#                say "connection lost";
+#            });
             $socket.write($request.serialize-header);
             # XXX send body
         });
@@ -198,26 +218,112 @@ class Client {
     }
 }
 
-my $srv = Server.new(host => '127.0.0.1', port => 6060, handler => sub ($rq) {
-    my $res = Response.new(http-version => $rq.http-version,
-                                    status-code => 200,
-                                    status-phrase => "Ok");
-    my $body-data = {
-        test => [1, 2, 3, 'ofenrohr'
-            ]
-    };
-    $res.body = to-json($body-data);
-    return $res;
+my $srv-a = Server.new(host => '127.0.0.1', port => 6060, handler => sub ($rq) {
+    if $rq.request-target ~~ /^ '/test/' (\d+) $/ {
+        my $value = $0.Numeric;
+        my $res = Response.new(http-version => $rq.http-version,
+                                        status-code => 200,
+                                        status-phrase => "Ok");
+        my $body-data = {
+            data => [1, 2, 3, 'ofenrohr' ],
+            value => $value
+        };
+        $res.body = to-json($body-data);
+        return $res;
+    }
+    else {
+        return Response.new(http-version => $rq.http-version,
+                                        status-code => 404,
+                                        status-phrase => "Not found");
+    }
 });
+my $srv-a-promise = $srv-a.start;
 
+my $srv-b = Server.new(host => '127.0.0.1', port => 6061, handler => sub ($rq) {
+    if $rq.request-target ~~ /^ '/api/backend/v1/user/' (\d+) $/ {
+        my $id = $0.Numeric;
+        my $res = Response.new(http-version => $rq.http-version,
+                                        status-code => 200,
+                                        status-phrase => "Ok");
+        my $body-data = {
+            name => "Max",
+            last-name => "Musterman",
+            id => $id
+        };
+        $res.body = to-json($body-data);
+        return $res;
+    }
+    else {
+        return Response.new(http-version => $rq.http-version,
+                                        status-code => 404,
+                                        status-phrase => "Not found");
+    }
+});
+my $srv-b-promise = $srv-b.start;
 
+my $srv-c = Server.new(host => '127.0.0.1', port => 6062, handler => sub ($rq) {
+    my $client = Client.new;
+    if $rq.request-target ~~ /^ '/gateway/userinfo/' (\d+) $/ {
+        my $id = $0.Numeric;
+        
+        my $rq-a = Request.new(method => 'GET', request-target => "/test/$id", http-version => 'HTTP/1.0');
+        $rq-a.headers<Host> = '127.0.0.1:6060';
+        my $rs-a-promise = $client.execute($rq-a);
+        
+      
+        my $rq-b = Request.new(method => 'GET', request-target => "/api/backend/v1/user/$id", http-version => 'HTTP/1.0');
+        $rq-b.headers<Host> = '127.0.0.1:6061';
+        my $rs-b-promise = $client.execute($rq-b);
 
-my $srv-promise = $srv.start;
+        return Promise.allof($rs-a-promise, $rs-b-promise).then({
+            my $rs-a = $rs-a-promise.result;
+            my $rs-b = $rs-b-promise.result;
+            my $res = Response.new(http-version => $rq.http-version,
+                status-code => 200,
+                status-phrase => "Ok");
+            my $body-data = from-json($rs-b.body);
+            $body-data<test-data> = from-json($rs-a.body);
+            $res.body = to-json($body-data);
+            $res;
+        });
+    }
+    else {
+        return Response.new(http-version => $rq.http-version,
+                                        status-code => 404,
+                                        status-phrase => "Not found");
+    }
+});
+my $srv-c-promise = $srv-c.start;
 
 my $client = Client.new;
-my $request = Request.new(method => 'GET', request-target => '/test234', http-version => 'HTTP/1.0');
-$request.headers<Host> = '127.0.0.1:6060';
-my $response = await $client.execute($request);
-say $response.perl;
 
-await $srv-promise;
+say "running benchmark...";
+my @threads = (^NUM-THREADS).map: {
+    Thread.start(
+        sub {
+            for ^RQS-PER-THREAD {
+                my $rand-id = (^1000).pick; 
+                my $request = Request.new(method => 'GET', request-target => "/gateway/userinfo/$rand-id", http-version => 'HTTP/1.0');
+                $request.headers<Host> = '127.0.0.1:6062';
+                my $response = await $client.execute($request);
+
+                if ($response.status-code != 200) {
+                    say "request failed";
+                    exit 1;
+                }
+                my $body-data = from-json($response.body);
+                if $body-data<id> != $rand-id {
+                    say "mismatched response";
+                    exit 1;
+                }
+            }
+        },
+    );
+}
+ 
+.finish for @threads;
+
+$srv-a.stop;
+$srv-b.stop;
+$srv-c.stop;
+await ($srv-a-promise, $srv-b-promise, $srv-c-promise);
