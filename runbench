@@ -6,10 +6,10 @@ echo "# cloning moar $1"
 git clone https://github.com/MoarVM/MoarVM.git
 cd MoarVM
 git checkout $1
-git log -n 1
-LDFLAGS=-Wl,-rpath=/usr/lib/moar CFLAGS=-DMP_GEN_RANDOM_MAX=2147483647 \
+git log --date=iso -n 1
+CFLAGS=-DMP_GEN_RANDOM_MAX=2147483647 \
     perl Configure.pl --prefix=/usr --has-libtommath --has-libuv \
-        --has-libatomic_ops --has-libffi --libdir=/usr/lib/moar
+        --has-libatomic_ops --has-libffi 
 make install -j `nproc`
 cd /
 
@@ -17,7 +17,7 @@ echo "# cloning nqp $2"
 git clone https://github.com/perl6/nqp.git
 cd nqp
 git checkout $2
-git log -n 1
+git log --date=iso -n 1
 perl Configure.pl --backends=moar --prefix=/usr
 make install -j `nproc`
 cd /
@@ -26,15 +26,27 @@ echo "# cloning rakudo $3"
 git clone https://github.com/rakudo/rakudo.git
 cd rakudo
 git checkout $3
-git log -n 1
-perl Configure.pl --prefix=/usr --libdir=/usr/lib --backends=moar
-make install -j `nproc`
+git log --date=iso -n 1
+perl Configure.pl --prefix=/usr --backends=moar
+make install -j `nproc` 
 cd /
 
 echo "# getting zef"
 git clone https://github.com/ugexe/zef.git
 cd zef
+git checkout $4
+# ugly hack to work around some weird problem with newer zef and older rakudo
+cp -r resources/ /
 perl6 -I. bin/zef install .
+if [ ! -f /usr/lib/perl6/site/bin/zef ]; then
+    echo "copying zef from legacy location to /usr/lib/perl6/site/bin"
+    mkdir -p /usr/lib/perl6/site/bin
+    ln -s /usr/share/perl6/site/bin/zef /usr/lib/perl6/site/bin/zef
+    echo "# ls -l /usr/share/perl6/site/bin"
+    ls -l /usr/share/perl6/site/bin
+    echo "# ls -l /usr/lib/perl6/site/bin"
+    ls -l /usr/lib/perl6/site/bin
+fi
 
 echo "# installing JSON::Tiny"
 /usr/lib/perl6/site/bin/zef install JSON::Tiny
@@ -52,6 +64,6 @@ nproc
 cd /p6bench
 for bm in $(ls  | sort); do
     echo "# running $bm"...
-    { time ./$bm } 2>&1
+    { time ./$bm; } 2>&1
 done
 echo "all done!"
