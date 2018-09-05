@@ -1,59 +1,3 @@
-#!/usr/bin/env perl6
-
-my @selected-benchmarks = ("01-logmunge", "02-gauss-elimination", "03-backend");
-
-my $fh = open("out", :w);
-
-$fh.say("# timestamp                           version" 
-    ~ @selected-benchmarks.map({sprintf("%15s", $_.substr(0, 14));}).join(""));
-
-for dir(test => /'.log' $/).sort.reverse -> $file {
-    my $state = 0;
-    my $effective-date = Nil;
-    my %bench-results = %();
-    my $bench-name;
-    my $version = $file;
-    $version ~~ s:g/'-'/_/;
-    $version ~~ s:g/'.log'$//;
-    for $file.IO.lines -> $line {
-        if $state == 0 && $line ~~ /^ 'commit '/ {
-            $state = 1;
-        }
-        elsif $state == 1 && $line ~~ /^ 'Date:' \s+ (.*)/ {
-            my $date-str = $0;
-            # argh, git and perl seem to have different ideas about iso 8601...
-            $date-str ~~ s/' '/T/;
-            $date-str ~~ s/' '//;
-            my $date = DateTime.new($date-str);
-            if (! defined $effective-date) || ($date > $effective-date) {
-                $effective-date = $date;
-            }
-        }
-        elsif $state == 1 && $line ~~ /^ \s* $/ {
-            $state = 0;
-        }
-        elsif $state == 0 && $line ~~ /^ '# running ' (.*) '...' / {
-            $bench-name = $0;
-            $state = 2;
-        }
-        elsif $state == 2 && $line ~~ /^ 'real' \s+ (\d+) 'm' (<[\d]+[.]>+) / {
-            %bench-results{$bench-name} = $0 * 60 + $1;
-            $state = 0;
-        }
-    }
-    my $result-line = sprintf("%11s", $effective-date.posix);
-    $result-line ~= sprintf("%34s", $version);
-    for @selected-benchmarks -> $bm {
-        $result-line ~= sprintf("%15s", %bench-results{$bm}//"??");
-    }
-    $fh.say($result-line);
-}
-$fh.close;
-shell("./plot.r");
-unlink("out");
-
-$fh = open("README.md", :w);
-$fh.say(q:to/END/);
 # Yet Another Perl 6 Benchmark
 
 ## Goals
@@ -106,6 +50,4 @@ The results for the currently broken backend benchmark:
 
 These tests were run on a 8-core Xeon E3-1245v3 at 3.40GHz with 32GB of memory. 
 
-END
 
-$fh.close;
