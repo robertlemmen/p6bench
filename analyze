@@ -6,6 +6,8 @@ my $fh = open("out", :w);
 
 $fh.say("# timestamp                           version" 
     ~ @selected-benchmarks.map({sprintf("%15s", $_.substr(0, 14));}).join(""));
+say("# timestamp                           version" 
+    ~ @selected-benchmarks.map({sprintf("%15s", $_.substr(0, 14));}).join(""));
 
 for dir(test => /'.log' $/).sort.reverse -> $file {
     my $state = 0;
@@ -47,6 +49,7 @@ for dir(test => /'.log' $/).sort.reverse -> $file {
         $result-line ~= sprintf("%15s", %bench-results{$bm}//"??");
     }
     $fh.say($result-line);
+    say($result-line);
 }
 $fh.close;
 shell("./plot.r");
