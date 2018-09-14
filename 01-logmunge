@@ -6,15 +6,16 @@ constant NUM-LINES = 20000;
 
 say '"Logmunge" benchmark';
 srand(42);
-my $time = DateTime.new(1534447684).utc + Duration.new(0.002);
+my $time-posix = 1534447684;
 my $fh = open("testfile", :w);
 my @open-tx;
 for ^NUM-LINES -> $i {
+    my $time = DateTime.new($time-posix);
     given 7.rand.floor {
         when 1 { 
             my $id = 5000000.rand.floor;
             @open-tx.push($id);
-            my $otime = $time - Duration.new(1000.rand.round / 1000);
+            my $otime = DateTime.new($time-posix - 4.rand.round);
             $fh.print("[$time] [INFO] starting tx $id for incoming request, rq timestamp is $otime\n") ;
         }
         when 2 {
@@ -40,7 +41,7 @@ for ^NUM-LINES -> $i {
             $fh.print("[$time] [DEBUG] doing some work\n") 
         }
     }
-    $time = $time + Duration.new(2000.rand.round / 1000);
+    $time-posix += 2.rand.round;
 }
 $fh.close();
 
@@ -55,7 +56,7 @@ for "testfile".IO.lines {
         my $tstamp = DateTime.new(~$0);
         my $start = %starts{$2};
         if defined $start {
-            my $duration = $tstamp - $start;
+            my $duration = $tstamp.posix - $start.posix;
             @durations.push($duration);
             %starts{$2}:delete;
         }
@@ -68,7 +69,7 @@ my $pp-pos = round(@durations.elems * 99 / 100);
 @durations = @durations.sort;
 my $pp = @durations[$pp-pos - 1];
 say "99% percentile latency: $pp";
-if 42.3 < $pp < 42.4 {
+if 43 <= $pp <= 45 {
     say "check ok";
 }  
 else {
