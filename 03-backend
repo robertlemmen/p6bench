@@ -295,12 +295,11 @@ my $srv-c = Server.new(host => '127.0.0.1', port => 6062, handler => sub ($rq) {
 });
 my $srv-c-promise = $srv-c.start;
 
-my $client = Client.new;
-
 say "running benchmark...";
 my @threads = (^NUM-THREADS).map: {
     Thread.start(
         sub {
+            my $client = Client.new;
             for ^RQS-PER-THREAD {
                 my $rand-id = (^1000).pick; 
                 my $request = Request.new(method => 'GET', request-target => "/gateway/userinfo/$rand-id", http-version => 'HTTP/1.0');
