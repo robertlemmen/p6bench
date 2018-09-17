@@ -1,10 +1,15 @@
 #!/usr/bin/env perl6
 
-# XXX should not use a third-party module in benchmark
-use JSON::Tiny;
-
 constant NUM-THREADS = 25;
 constant RQS-PER-THREAD = 150;
+
+sub serialize(%data) {
+    %data.pairs.map({ .kv.join("=")}).join(",")
+}
+
+sub deserialize($text) {
+    Hash.new($text.split(",").map({Pair.new(|.split("="))}))
+}
 
 class Message {
     has $.headers is rw = {};
@@ -225,10 +230,10 @@ my $srv-a = Server.new(host => '127.0.0.1', port => 6060, handler => sub ($rq) {
                                         status-code => 200,
                                         status-phrase => "Ok");
         my $body-data = {
-            data => [1, 2, 3, 'ofenrohr' ],
+            data => 'ofenrohr',
             value => $value
         };
-        $res.body = to-json($body-data);
+        $res.body = serialize($body-data);
         return $res;
     }
     else {
@@ -250,7 +255,7 @@ my $srv-b = Server.new(host => '127.0.0.1', port => 6061, handler => sub ($rq) {
             last-name => "Musterman",
             id => $id
         };
-        $res.body = to-json($body-data);
+        $res.body = serialize($body-data);
         return $res;
     }
     else {
@@ -281,9 +286,9 @@ my $srv-c = Server.new(host => '127.0.0.1', port => 6062, handler => sub ($rq) {
             my $res = Response.new(http-version => $rq.http-version,
                 status-code => 200,
                 status-phrase => "Ok");
-            my $body-data = from-json($rs-b.body);
-            $body-data<test-data> = from-json($rs-a.body);
-            $res.body = to-json($body-data);
+            my $body-data = deserialize($rs-b.body);
+            $body-data.push(deserialize($rs-a.body));
+            $res.body = serialize($body-data);
             $res;
         });
     }
@@ -310,7 +315,7 @@ my @threads = (^NUM-THREADS).map: {
                     say "request failed";
                     exit 1;
                 }
-                my $body-data = from-json($response.body);
+                my $body-data = deserialize($response.body);
                 if $body-data<id> != $rand-id {
                     say "mismatched response";
                     exit 1;
@@ -326,3 +331,6 @@ $srv-a.stop;
 $srv-b.stop;
 $srv-c.stop;
 await ($srv-a-promise, $srv-b-promise, $srv-c-promise);
+
+say "benchmark complete";
+
