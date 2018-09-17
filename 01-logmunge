@@ -76,6 +76,6 @@ else {
     say "check failed!";
     exit(1);
 }
-IO::Path.new("testfile").unlink;
+unlink("testfile");
 
 say "benchmark complete";
