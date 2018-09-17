@@ -38,7 +38,10 @@ for dir(test => /'.log' $/).sort.reverse -> $file {
             $bench-name = $0;
             $state = 2;
         }
-        elsif $state == 2 && $line ~~ /^ 'real' \s+ (\d+) 'm' (<[\d]+[.]>+) / {
+        elsif $state == 2 && $line ~~ /^ 'benchmark complete' / {
+            $state = 3;
+        }
+        elsif $state == 3 && $line ~~ /^ 'real' \s+ (\d+) 'm' (<[\d]+[.]>+) / {
             %bench-results{$bench-name} = $0 * 60 + $1;
             $state = 0;
         }
