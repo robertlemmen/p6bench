@@ -43,10 +43,12 @@ for 0..($N-1) -> $i {
 for @rvals -> $i {
     say $i;
 };
-if 0.134717 < @rvals[0] < 0.134718 {
+if 0.134 < @rvals[0] < 0.135 {
     say "check ok";
 }  
 else {
-    say "check failed!";
+    say "check failed: {@rvals[0]}";
     exit(1);
 }
+
+say "benchmark complete";

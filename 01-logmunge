@@ -2,7 +2,7 @@
 
 use v6;
 
-constant NUM-LINES = 20000;
+constant NUM-LINES = 30000;
 
 say '"Logmunge" benchmark';
 srand(42);
@@ -77,3 +77,5 @@ else {
     exit(1);
 }
 IO::Path.new("testfile").unlink;
+
+say "benchmark complete";
