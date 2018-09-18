@@ -67,8 +67,8 @@ nproc
 
 cd /p6bench
 
-for bm in $(ls  | sort | grep -v "backend"); do
+for bm in $(ls  | sort ); do
     echo "# running $bm"...
-    { time ./$bm; } 2>&1
+    { time timeout 120s ./$bm; } 2>&1
 done
 echo "all done!"

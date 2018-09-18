@@ -32,7 +32,11 @@ This benchmark simulates logfile analysis, so primarily regular expression match
 
 This benchmark solves a large system of linear equation using exact maths, focusing on rational number performance.
 
-### 03-backend 
+### 03-mandelbrot
+
+This is a simplistic implementation of a mandelbrot image generator. It is a much more small-scale benchmark than the others, and focuses on iteration and floating point performance.
+
+### 04-backend 
 
 This emulates a service-oriented backend by setting up multiple servers that communicate over a HTTP-like protocol. It involves concurrency, promises, network I/O and text processing. This benchmark is currently broken and very unreliable, any help welcome.
 
