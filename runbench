@@ -69,6 +69,6 @@ cd /p6bench
 
 for bm in $(ls  | sort ); do
     echo "# running $bm"...
-    { time timeout 120s ./$bm; } 2>&1
+    { time timeout 160s ./$bm; } 2>&1
 done
 echo "all done!"

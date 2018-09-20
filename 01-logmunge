@@ -58,7 +58,7 @@ for "testfile".IO.lines {
         if defined $start {
             my $duration = $tstamp.posix - $start.posix;
             @durations.push($duration);
-            %starts{$2}:delete;
+            %starts{~$2}:delete;
         }
         else {
             say "end for unknown tx $2";
