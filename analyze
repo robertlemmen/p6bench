@@ -7,7 +7,7 @@ my $fh = open("out", :w);
 $fh.say("# timestamp                           version" 
     ~ @selected-benchmarks.map({sprintf("%15s", $_.substr(0, 14));}).join(""));
 say("# timestamp                           version" 
-    ~ @selected-benchmarks.map({sprintf("%15s", $_.substr(0, 14));}).join(""));
+    ~ @selected-benchmarks.map({sprintf("%15s %15s %15s", $_.substr(0, 14), "- count", "- stddev");}).join(""));
 
 for dir(test => /'.log' $/).sort.reverse -> $file {
     my $state = 0;
@@ -34,7 +34,7 @@ for dir(test => /'.log' $/).sort.reverse -> $file {
         elsif $state == 1 && $line ~~ /^ \s* $/ {
             $state = 0;
         }
-        elsif $state == 0 && $line ~~ /^ '# running ' (.*) '...' / {
+        elsif ($state == 0 || $state == 2) && $line ~~ /^ '# running ' (.*) '...' / {
             $bench-name = $0;
             $state = 2;
         }
@@ -42,14 +42,24 @@ for dir(test => /'.log' $/).sort.reverse -> $file {
             $state = 3;
         }
         elsif $state == 3 && $line ~~ /^ 'real' \s+ (\d+) 'm' (<[\d]+[.]>+) / {
-            %bench-results{$bench-name} = $0 * 60 + $1;
-            $state = 0;
+            %bench-results{$bench-name}.push($0 * 60 + $1);
+            $state = 2;
         }
     }
     my $result-line = sprintf("%11s", $effective-date.posix);
     $result-line ~= sprintf("%34s", $version);
     for @selected-benchmarks -> $bm {
-        $result-line ~= sprintf("%15s", %bench-results{$bm}//"??");
+        if ! defined %bench-results{$bm} {
+            $result-line ~= sprintf("%15s %15s %15s", "??", "??", "??");
+        }
+        else {
+            my $sum = [+] %bench-results{$bm};
+            my $count = %bench-results{$bm}.elems;
+            my $avg = $sum / $count;
+            my $devsum = [+] %bench-results{$bm}.map({ ($_ - $avg) ** 2 });
+            my $stddev = sqrt($devsum / ($count - 1));
+            $result-line ~= sprintf("%15.2f %15d %15.2f", $avg, $count, $stddev.Num);
+        }
     }
     $fh.say($result-line);
     say($result-line);
