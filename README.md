@@ -16,7 +16,7 @@ The specific goals of this becnhmark are:
 This is in a very early state, amongst other thigns it needs:
 
 * Fixes to make the "backend" test reliable and meaningful
-* Fixes to the setup to extend the range of tested versions further into the past
+* Use actual Complex in 03-mandelbrot
 * More sub-benchmarks for other aspects of the language
 * Reviews of the existing benchmarks to make them more idomatic (not to optimize them in terms of performance)
 
