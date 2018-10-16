@@ -1,7 +1,7 @@
 #!/usr/bin/env perl6
 
 constant NUM-THREADS = 25;
-constant RQS-PER-THREAD = 150;
+constant RQS-PER-THREAD = 250;
 
 sub serialize(%data) {
     %data.pairs.map({ .kv.join("=")}).join(",")
