@@ -1,7 +1,7 @@
 # versions of moar, nqp, rakudo and zef. each line contains a combination 
 # against which we run the benchmark
 #8aaf696a3   358dc6eab   5f55d76272  v0.5.1
-master      master      master      v0.5.1
+2018.10     2018.10     2018.10      v0.5.1
 2018.09     2018.09     2018.09     v0.5.1
 2018.08     2018.08     2018.08     v0.5.1
 2018.06     2018.06     2018.06     v0.5.1
