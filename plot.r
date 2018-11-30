@@ -24,7 +24,7 @@ points(data$V1, data$mean, ylim=yrange, pch=5, col="black")
 
 axis(2)
 r <- round(as.POSIXct(range(data$V1), origin="1970-01-01"), "days")
-axis.POSIXct(1, at = seq(r[1], r[2], by = "month"), labels=FALSE)
+axis.POSIXct(1, at = seq(r[1], r[2], by = "3 month"), labels=FALSE)
 axis.POSIXct(1, at = seq(r[1], r[2], by = "3 month"), format="%m.%Y")
 
 dev.off()
@@ -40,7 +40,7 @@ legend("topright", legend=c("04-backend"), fill=c("red"),
 
 axis(2)
 r <- round(as.POSIXct(range(data$V1), origin="1970-01-01"), "days")
-axis.POSIXct(1, at = seq(r[1], r[2], by = "month"), labels=FALSE)
+axis.POSIXct(1, at = seq(r[1], r[2], by = "3 month"), labels=FALSE)
 axis.POSIXct(1, at = seq(r[1], r[2], by = "3 month"), format="%m.%Y")
 
 dev.off()
