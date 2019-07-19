@@ -38,7 +38,7 @@ This is a simplistic implementation of a mandelbrot image generator. It is a muc
 
 ### 04-backend 
 
-This emulates a service-oriented backend by setting up multiple servers that communicate over a HTTP-like protocol. It involves concurrency, promises, network I/O and text processing. This benchmark is broken for many versions of perl 6 and gives unstable resutls for older ones. It probably only makes sense from 2018.09 onwards. Any help on getting a comparable benchmark that works across versions welcome!
+This emulates a service-oriented backend by setting up multiple servers that communicate over a HTTP-like protocol. It involves concurrency, promises, network I/O and text processing. This benchmark is currently broken and very unreliable, any help welcome.
 
 ## Results
 
@@ -46,7 +46,7 @@ Below are the results, lower numbers are better of course.
 
 ![alt text](bench.svg)
 
-The results for the currently backend benchmark, see above for caveats:
+The results for the currently broken backend benchmark:
 
 ![alt text](bench-broken.svg)
 
