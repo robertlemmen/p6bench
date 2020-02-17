@@ -4,6 +4,10 @@ svg("bench.svg",width=11.32,height=7)
 
 data <- read.table("out", na.strings="??")
 
+data <- data[order(-data$V1),]
+
+data
+
 yrange <- range(data$V3, data$V6, data$V9, 0,  na.rm = TRUE)
 data$mean = rowMeans(data[c('V3', 'V6', 'V9')])
 
